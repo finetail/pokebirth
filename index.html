@@ -19,8 +19,8 @@
     --line:#D4D8EE;
     --shadow:rgba(26,27,61,.16);
   }
-  :root:not([data-theme="light"]){
-    @media (prefers-color-scheme: dark){
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
       --ink:#F0F1FB;
       --ink-soft:#A3A7CC;
       --bg:#14152E;
@@ -62,18 +62,26 @@
     align-items:center;
     box-shadow:0 2px 0 var(--line);
   }
-  label.f{display:flex;align-items:baseline;gap:6px;font-size:15px;color:var(--ink-soft)}
+  label.f{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink-soft)}
   select{
-    font:700 20px/1 "Zen Maru Gothic",system-ui,sans-serif;
+    -webkit-appearance:none;
+    appearance:none;
+    font:700 18px/1 "Zen Maru Gothic",system-ui,sans-serif;
     color:var(--ink);
-    background:transparent;
-    border:0;
-    border-bottom:2px solid var(--amber);
-    padding:6px 4px;
-    border-radius:0;
+    background-color:var(--bg);
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M5 8l5 5 5-5' fill='none' stroke='%235A5C86' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 10px center;
+    background-size:16px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:10px 32px 10px 14px;
     cursor:pointer;
+    color-scheme:light dark;
   }
-  select:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+  select option{color:#1A1B3D;background:#fff}
+  select:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  select:hover{border-color:var(--teal)}
   button{
     font:700 16px/1 "Zen Kaku Gothic New",system-ui,sans-serif;
     margin-left:auto;

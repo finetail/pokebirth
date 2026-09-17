@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>誕生日ポケモン｜366日ぜんいん対応版</title>
+<meta name="description" content="1月1日から数えた誕生日の通算日と、図鑑No.を366で割った余りを対応させる誕生日ポケモン診断。11月・12月生まれもちゃんと当たります。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1A1B3D;
+    --ink-soft:#5A5C86;
+    --bg:#EDEFFA;
+    --surface:#FFFFFF;
+    --amber:#FFB020;
+    --teal:#128C87;
+    --line:#D4D8EE;
+    --shadow:rgba(26,27,61,.16);
+  }
+  :root:not([data-theme="light"]){
+    @media (prefers-color-scheme: dark){
+      --ink:#F0F1FB;
+      --ink-soft:#A3A7CC;
+      --bg:#14152E;
+      --surface:#1E2044;
+      --line:#33365F;
+      --shadow:rgba(0,0,0,.45);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Zen Kaku Gothic New",system-ui,sans-serif;
+    line-height:1.75;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:660px;margin:0 auto;padding:clamp(24px,5vw,56px) 20px 72px}
+
+  h1{
+    font-family:"Zen Maru Gothic",system-ui,sans-serif;
+    font-weight:900;
+    font-size:clamp(28px,7vw,42px);
+    line-height:1.3;
+    letter-spacing:.01em;
+    margin:0 0 12px;
+  }
+  .lede{color:var(--ink-soft);margin:0 0 28px;font-size:15px}
+
+  /* --- 入力 --- */
+  .picker{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:20px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    align-items:center;
+    box-shadow:0 2px 0 var(--line);
+  }
+  label.f{display:flex;align-items:baseline;gap:6px;font-size:15px;color:var(--ink-soft)}
+  select{
+    font:700 20px/1 "Zen Maru Gothic",system-ui,sans-serif;
+    color:var(--ink);
+    background:transparent;
+    border:0;
+    border-bottom:2px solid var(--amber);
+    padding:6px 4px;
+    border-radius:0;
+    cursor:pointer;
+  }
+  select:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+  button{
+    font:700 16px/1 "Zen Kaku Gothic New",system-ui,sans-serif;
+    margin-left:auto;
+    background:var(--ink);
+    color:var(--bg);
+    border:0;
+    border-radius:999px;
+    padding:14px 26px;
+    cursor:pointer;
+  }
+  button:hover{background:var(--teal);color:#fff}
+  button:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+
+  /* --- 計算の帯 --- */
+  .calc{
+    margin:28px 0 8px;
+    padding:18px 20px;
+    border-left:4px solid var(--amber);
+    background:color-mix(in srgb, var(--surface) 70%, transparent);
+    border-radius:0 14px 14px 0;
+    font-size:15px;
+    color:var(--ink-soft);
+  }
+  .calc b{
+    font-family:"Zen Maru Gothic",system-ui,sans-serif;
+    font-size:22px;
+    color:var(--ink);
+    font-feature-settings:"tnum";
+  }
+
+  /* --- 結果 --- */
+  .cards{display:grid;gap:14px;margin-top:18px}
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:16px;
+    display:grid;
+    grid-template-columns:96px 1fr;
+    gap:16px;
+    align-items:center;
+    box-shadow:0 6px 18px -12px var(--shadow);
+  }
+  .card img{width:96px;height:96px;object-fit:contain;display:block}
+  .no{
+    font-family:"Zen Maru Gothic",system-ui,sans-serif;
+    font-weight:700;
+    color:var(--teal);
+    font-size:14px;
+    font-feature-settings:"tnum";
+    letter-spacing:.06em;
+  }
+  .name{
+    font-family:"Zen Maru Gothic",system-ui,sans-serif;
+    font-weight:900;
+    font-size:clamp(22px,5.5vw,28px);
+    line-height:1.25;
+    margin:2px 0 4px;
+  }
+  .genus{font-size:14px;color:var(--ink-soft);margin:0}
+  .flavor{font-size:13px;color:var(--ink-soft);margin:8px 0 0}
+
+  .reveal{animation:up .45s cubic-bezier(.2,.7,.3,1) both}
+  .reveal:nth-child(2){animation-delay:.07s}
+  .reveal:nth-child(3){animation-delay:.14s}
+  @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.reveal{animation:none}}
+
+  .share{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
+  .share button{margin-left:0;background:var(--amber);color:#2A1B00}
+  .share button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .share button:hover{background:var(--teal);color:#fff}
+
+  .note{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-soft)}
+  .note h2{font-family:"Zen Maru Gothic",system-ui,sans-serif;font-size:16px;margin:0 0 8px;color:var(--ink)}
+  .note a{color:var(--teal)}
+  .status{margin-top:20px;color:var(--ink-soft);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>誕生日ポケモン<br>366日ぜんいん対応版</h1>
+  <p class="lede">1月1日から数えた通算日と、図鑑No.を366で割った余りを突き合わせます。日付を月日そのまま読む方式だと11月・12月生まれが余ってしまうので、余りで一周させました。2〜3匹当たります。</p>
+
+  <div class="picker">
+    <label class="f"><select id="m" aria-label="誕生月"></select>月</label>
+    <label class="f"><select id="d" aria-label="誕生日"></select>日</label>
+    <button id="go">この日のポケモンを見る</button>
+  </div>
+
+  <div id="out" aria-live="polite"></div>
+
+  <div class="note">
+    <h2>計算のしかた</h2>
+    <p>うるう年込みの並び（2月29日を含む366日）で通算日を数え、<b>図鑑No. ÷ 366 の余り＝通算日 ÷ 366 の余り</b>になるポケモンを全部出しています。全国図鑑は現在No.1025まであるので、どの日にも2〜3匹が対応します。12月31日は余り0の組（No.366・732）です。</p>
+    <p>名前・分類・説明文は <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a>、画像は <a href="https://github.com/PokeAPI/sprites" target="_blank" rel="noopener">PokeAPI/sprites</a> から取得しています。ポケモンは株式会社ポケモン・任天堂・ゲームフリーク・クリーチャーズの登録商標です。このページは非公式のファン企画です。</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const MAX_DEX = 1025;
+  const CYCLE = 366;
+  const CUM = [0,31,60,91,121,152,182,213,244,274,305,335]; // うるう年基準
+  const DAYS = [31,29,31,30,31,30,31,31,30,31,30,31];
+  const $ = s => document.querySelector(s);
+  const mSel = $('#m'), dSel = $('#d'), out = $('#out');
+  const cache = new Map();
+
+  for (let i = 1; i <= 12; i++) mSel.add(new Option(i, i));
+
+  function fillDays(keep) {
+    const m = +mSel.value, max = DAYS[m-1], cur = keep ?? +dSel.value || 1;
+    dSel.innerHTML = '';
+    for (let i = 1; i <= max; i++) dSel.add(new Option(i, i));
+    dSel.value = Math.min(cur, max);
+  }
+  const dayOfYear = (m, d) => CUM[m-1] + d;
+  const matches = doy => {
+    const r = doy % CYCLE, list = [];
+    for (let n = 1; n <= MAX_DEX; n++) if (n % CYCLE === r) list.push(n);
+    return list;
+  };
+
+  async function species(id) {
+    if (cache.has(id)) return cache.get(id);
+    const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`);
+    if (!res.ok) throw new Error('fetch failed');
+    const j = await res.json();
+    const pick = (arr, key) =>
+      arr.find(x => x.language.name === 'ja-Hrkt') ||
+      arr.find(x => x.language.name === 'ja') ||
+      arr.find(x => x.language.name === 'en');
+    const name = pick(j.names)?.name ?? `No.${id}`;
+    const genus = pick(j.genera)?.genus ?? '';
+    const flavorEntry =
+      j.flavor_text_entries.find(x => x.language.name === 'ja-Hrkt') ||
+      j.flavor_text_entries.find(x => x.language.name === 'ja');
+    const flavor = flavorEntry ? flavorEntry.flavor_text.replace(/[\n\f\r]/g, '') : '';
+    const data = { id, name, genus, flavor };
+    cache.set(id, data);
+    return data;
+  }
+
+  const art = id => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
+  const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  async function run(push) {
+    const m = +mSel.value, d = +dSel.value;
+    const doy = dayOfYear(m, d), ids = matches(doy);
+    out.innerHTML = `<p class="status">よみこみ中…</p>`;
+    if (push) history.replaceState(null, '', `?d=${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`);
+
+    let list;
+    try {
+      list = await Promise.all(ids.map(species));
+    } catch {
+      out.innerHTML = `<p class="status">データを取れませんでした。通信を確認してもう一度おしてください。該当するのは No.${ids.join('・No.')} です。</p>`;
+      return;
+    }
+
+    const names = list.map(p => p.name).join('・');
+    out.innerHTML = `
+      <div class="calc reveal">
+        ${m}月${d}日は 1年の <b>${doy}日目</b> ／ 366で割った余りは <b>${doy % CYCLE}</b>
+      </div>
+      <div class="cards">
+        ${list.map(p => `
+          <div class="card reveal">
+            <img src="${art(p.id)}" alt="${esc(p.name)}" loading="lazy"
+                 onerror="this.style.visibility='hidden'">
+            <div>
+              <div class="no">No.${String(p.id).padStart(4,'0')}</div>
+              <p class="name">${esc(p.name)}</p>
+              <p class="genus">${esc(p.genus)}</p>
+              ${p.flavor ? `<p class="flavor">${esc(p.flavor)}</p>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="share">
+        <button id="tw">Xでポストする</button>
+        <button class="ghost" id="cp">リンクをコピー</button>
+      </div>`;
+
+    const text = `${m}月${d}日生まれ（${doy}日目）のポケモンは ${names}`;
+    $('#tw').onclick = () => {
+      const u = new URL('https://twitter.com/intent/tweet');
+      u.searchParams.set('text', text);
+      u.searchParams.set('url', location.href);
+      window.open(u, '_blank', 'noopener');
+    };
+    $('#cp').onclick = async e => {
+      try { await navigator.clipboard.writeText(location.href); e.target.textContent = 'コピーしました'; }
+      catch { e.target.textContent = 'コピーできませんでした'; }
+      setTimeout(() => { e.target.textContent = 'リンクをコピー'; }, 1800);
+    };
+  }
+
+  mSel.onchange = () => fillDays();
+  $('#go').onclick = () => run(true);
+
+  // 初期値：?d=MMDD があればそれ、なければ今日
+  const q = new URLSearchParams(location.search).get('d');
+  const today = new Date();
+  let m0 = today.getMonth() + 1, d0 = today.getDate();
+  if (q && /^\d{4}$/.test(q)) {
+    const mm = +q.slice(0,2), dd = +q.slice(2);
+    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= DAYS[mm-1]) { m0 = mm; d0 = dd; }
+  }
+  mSel.value = m0; fillDays(d0);
+  if (q) run(false);
+})();
+</script>
+</body>
+</html>

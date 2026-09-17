@@ -186,7 +186,7 @@
   for (let i = 1; i <= 12; i++) mSel.add(new Option(i, i));
 
   function fillDays(keep) {
-    const m = +mSel.value, max = DAYS[m-1], cur = keep ?? +dSel.value || 1;
+    const m = +mSel.value, max = DAYS[m-1], cur = keep ?? (+dSel.value || 1);
     dSel.innerHTML = '';
     for (let i = 1; i <= max; i++) dSel.add(new Option(i, i));
     dSel.value = Math.min(cur, max);

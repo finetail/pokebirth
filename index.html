@@ -208,6 +208,17 @@
 
   async function species(id) {
     if (cache.has(id)) return cache.get(id);
+
+    const lsKey = `pokebirth:v1:species:${id}`;
+    try {
+      const stored = localStorage.getItem(lsKey);
+      if (stored) {
+        const data = JSON.parse(stored);
+        cache.set(id, data);
+        return data;
+      }
+    } catch { /* localStorageが使えない環境ではそのままfetchする */ }
+
     const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`);
     if (!res.ok) throw new Error('fetch failed');
     const j = await res.json();
@@ -223,6 +234,8 @@
     const flavor = flavorEntry ? flavorEntry.flavor_text.replace(/[\n\f\r]/g, '') : '';
     const data = { id, name, genus, flavor };
     cache.set(id, data);
+    try { localStorage.setItem(lsKey, JSON.stringify(data)); }
+    catch { /* 容量超過などは無視して動作は継続 */ }
     return data;
   }
 

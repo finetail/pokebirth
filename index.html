@@ -497,16 +497,35 @@
 
       const images = await Promise.all(list.map(p => loadImg(art(p.id))));
 
-      // 事前計測：各カードの高さ（説明文の行数で可変）
+      // カード内テキストを「固定高さの行」のリストとして組み立てる（測定・描画で共通利用）
       const measure = document.createElement('canvas').getContext('2d');
       const cardImgSize = 132, cardPad = 20, cardTextX = cardImgSize + cardPad * 2;
       const cardWidth = W - PAD * 2;
       const flavorMaxW = cardWidth - cardTextX - cardPad;
-      measure.font = '400 15px "Zen Kaku Gothic New", sans-serif';
-      const cardHeights = list.map(p => {
+
+      const NO_FONT = '700 14px "Zen Maru Gothic", sans-serif';
+      const NAME_FONT = '900 25px "Zen Maru Gothic", sans-serif';
+      const GENUS_FONT = '400 14px "Zen Kaku Gothic New", sans-serif';
+      const TYPE_FONT = '700 12px "Zen Kaku Gothic New", sans-serif';
+      const FLAVOR_FONT = '400 15px "Zen Kaku Gothic New", sans-serif';
+
+      function buildRows(p) {
+        measure.font = FLAVOR_FONT;
         const flavorLines = wrapLines(measure, p.flavor, flavorMaxW, 2);
-        const base = cardPad * 2 + 26 /*name*/ + 20 /*genus*/ + (p.types.length ? 30 : 0);
-        return Math.max(cardImgSize + cardPad * 2, base + flavorLines.length * 21 + 6);
+        const rows = [
+          { kind: 'no', h: 24, text: `No.${String(p.id).padStart(4, '0')}` },
+          { kind: 'name', h: 34, text: p.name },
+        ];
+        if (p.genus) rows.push({ kind: 'genus', h: 22, text: p.genus });
+        if (p.types.length) rows.push({ kind: 'types', h: 32, types: p.types });
+        flavorLines.forEach(l => rows.push({ kind: 'flavor', h: 22, text: l }));
+        return rows;
+      }
+
+      const rowsPerCard = list.map(buildRows);
+      const cardHeights = rowsPerCard.map(rows => {
+        const contentH = rows.reduce((a, r) => a + r.h, 0);
+        return Math.max(cardImgSize + cardPad * 2, cardPad * 2 + contentH);
       });
 
       const headerH = 78;
@@ -535,7 +554,8 @@
       ctx.fillText('誕生日ポケモン', PAD, y + 66);
       y += headerH + GAP;
 
-      // カード
+      // カード（各行は固定高さの帯の中央にテキストを置くので、フォントの上下の突き出しで隣の行と被らない）
+      ctx.textBaseline = 'middle';
       list.forEach((p, i) => {
         const h = cardHeights[i];
         roundRect(ctx, PAD, y, cardWidth, h, 20);
@@ -554,50 +574,45 @@
           ctx.restore();
         }
 
-        let tx = PAD + cardTextX, ty = y + cardPad;
-        ctx.font = '700 14px "Zen Maru Gothic", sans-serif';
-        ctx.fillStyle = teal;
-        ctx.fillText(`No.${String(p.id).padStart(4, '0')}`, tx, ty + 14);
-        ty += 30;
-        ctx.font = '900 24px "Zen Maru Gothic", sans-serif';
-        ctx.fillStyle = ink;
-        ctx.fillText(p.name, tx, ty);
-        ty += 22;
-        ctx.font = '400 14px "Zen Kaku Gothic New", sans-serif';
-        ctx.fillStyle = inkSoft;
-        ctx.fillText(p.genus, tx, ty);
-        ty += 8;
-
-        if (p.types.length) {
-          let bx = tx;
-          const by = ty + 12;
-          ctx.font = '700 12px "Zen Kaku Gothic New", sans-serif';
-          p.types.forEach(t => {
-            const [label, color] = TYPE_META[t] ?? [t, '#68A090'];
-            const w = ctx.measureText(label).width + 20;
-            roundRect(ctx, bx, by, w, 24, 12);
-            ctx.fillStyle = color;
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.fillText(label, bx + 10, by + 17);
-            bx += w + 6;
-          });
-          ty += 32;
-        } else {
-          ty += 4;
-        }
-
-        ctx.font = '400 15px "Zen Kaku Gothic New", sans-serif';
-        ctx.fillStyle = inkSoft;
-        wrapLines(measure, p.flavor, flavorMaxW, 2).forEach(l => {
-          ty += 21;
-          ctx.fillText(l, tx, ty);
+        const tx = PAD + cardTextX;
+        let rowTop = y + cardPad;
+        rowsPerCard[i].forEach(row => {
+          const cy = rowTop + row.h / 2;
+          if (row.kind === 'no') {
+            ctx.font = NO_FONT; ctx.fillStyle = teal;
+            ctx.fillText(row.text, tx, cy);
+          } else if (row.kind === 'name') {
+            ctx.font = NAME_FONT; ctx.fillStyle = ink;
+            ctx.fillText(row.text, tx, cy);
+          } else if (row.kind === 'genus') {
+            ctx.font = GENUS_FONT; ctx.fillStyle = inkSoft;
+            ctx.fillText(row.text, tx, cy);
+          } else if (row.kind === 'types') {
+            ctx.font = TYPE_FONT;
+            const pillH = 24, pillY = rowTop + (row.h - pillH) / 2;
+            let bx = tx;
+            row.types.forEach(t => {
+              const [label, color] = TYPE_META[t] ?? [t, '#68A090'];
+              const w = ctx.measureText(label).width + 20;
+              roundRect(ctx, bx, pillY, w, pillH, 12);
+              ctx.fillStyle = color;
+              ctx.fill();
+              ctx.fillStyle = '#fff';
+              ctx.fillText(label, bx + 10, pillY + pillH / 2);
+              bx += w + 6;
+            });
+          } else if (row.kind === 'flavor') {
+            ctx.font = FLAVOR_FONT; ctx.fillStyle = inkSoft;
+            ctx.fillText(row.text, tx, cy);
+          }
+          rowTop += row.h;
         });
 
         y += h + GAP;
       });
 
       // フッター（クレジット）
+      ctx.textBaseline = 'alphabetic';
       ctx.font = '700 13px "Zen Kaku Gothic New", sans-serif';
       ctx.fillStyle = inkSoft;
       ctx.fillText('誕生日ポケモン｜finetail.github.io/pokebirth', PAD, y + 20);

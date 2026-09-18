@@ -23,6 +23,7 @@
 <meta name="twitter:image" content="https://finetail.github.io/pokebirth/og-image.png">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
 <style>
@@ -195,6 +196,19 @@
   .share button{margin-left:0;background:var(--amber);color:#2A1B00}
   .share button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
   .share button:hover{background:var(--teal);color:#fff}
+  .btnlike{
+    display:inline-flex;
+    align-items:center;
+    font:700 16px/1 "Zen Kaku Gothic New",system-ui,sans-serif;
+    color:var(--ink);
+    background:transparent;
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:14px 26px;
+    text-decoration:none;
+    cursor:pointer;
+  }
+  .btnlike:hover{background:var(--teal);color:#fff;border-color:var(--teal)}
 
   .volume{
     margin-top:14px;
@@ -370,30 +384,35 @@
 
     const names = list.map(p => p.name).join('・');
     out.innerHTML = `
-      <div class="calc reveal">
-        ${m}月${d}日は 1年の <b>${doy}日目</b> ／ 366で割った余りは <b>${doy % CYCLE}</b>
-      </div>
-      <div class="cards">
-        ${list.map(p => `
-          <div class="card reveal">
-            <img src="${art(p.id)}" alt="${esc(p.name)}" loading="lazy"
-                 onerror="this.style.visibility='hidden'">
-            <div>
-              <div class="no-row">
-                <span class="no">No.${String(p.id).padStart(4,'0')}</span>
-                ${p.cry ? `<button class="cry" data-src="${esc(p.cry)}" aria-label="${esc(p.name)}の鳴き声を再生">🔊 鳴き声</button>` : ''}
+      <div id="capture">
+        <div class="calc reveal">
+          ${m}月${d}日は 1年の <b>${doy}日目</b> ／ 366で割った余りは <b>${doy % CYCLE}</b>
+        </div>
+        <div class="cards">
+          ${list.map(p => `
+            <div class="card reveal">
+              <img src="${art(p.id)}" alt="${esc(p.name)}" loading="lazy" crossorigin="anonymous"
+                   onerror="this.style.visibility='hidden'">
+              <div>
+                <div class="no-row">
+                  <span class="no">No.${String(p.id).padStart(4,'0')}</span>
+                  ${p.cry ? `<button class="cry" data-src="${esc(p.cry)}" aria-label="${esc(p.name)}の鳴き声を再生">🔊 鳴き声</button>` : ''}
+                </div>
+                <p class="name">${esc(p.name)}</p>
+                <p class="genus">${esc(p.genus)}</p>
+                ${p.types.length ? `<div class="types">${p.types.map(typeBadge).join('')}</div>` : ''}
+                ${p.flavor ? `<p class="flavor">${esc(p.flavor)}</p>` : ''}
               </div>
-              <p class="name">${esc(p.name)}</p>
-              <p class="genus">${esc(p.genus)}</p>
-              ${p.types.length ? `<div class="types">${p.types.map(typeBadge).join('')}</div>` : ''}
-              ${p.flavor ? `<p class="flavor">${esc(p.flavor)}</p>` : ''}
-            </div>
-          </div>`).join('')}
+            </div>`).join('')}
+        </div>
       </div>
       <div class="share">
         <button id="tw">Xでポストする</button>
         <button class="ghost" id="cp">リンクをコピー</button>
-      </div>`;
+        <button class="ghost" id="imgCopy">画像をコピー</button>
+        <button class="ghost" id="imgSave">画像を保存</button>
+      </div>
+      <p class="status" id="imgStatus" aria-live="polite"></p>`;
 
     const text = `${m}月${d}日生まれ（${doy}日目）のポケモンは ${names}`;
     document.querySelectorAll('.cry').forEach(btn => {
@@ -417,6 +436,76 @@
       try { await navigator.clipboard.writeText(location.href); e.target.textContent = 'コピーしました'; }
       catch { e.target.textContent = 'コピーできませんでした'; }
       setTimeout(() => { e.target.textContent = 'リンクをコピー'; }, 1800);
+    };
+
+    const statusEl = $('#imgStatus');
+    const showStatus = msg => {
+      statusEl.textContent = msg;
+      clearTimeout(showStatus._t);
+      showStatus._t = setTimeout(() => { statusEl.textContent = ''; }, 2600);
+    };
+    const captureCanvas = () => html2canvas(document.getElementById('capture'), {
+      useCORS: true,
+      backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#ffffff',
+      scale: Math.min(2, window.devicePixelRatio || 1.5),
+    });
+    const captureBlob = async () => {
+      const canvas = await captureCanvas();
+      return await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    };
+
+    $('#imgCopy').onclick = async e => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      const original = btn.textContent;
+      btn.textContent = '準備中…';
+      try {
+        if (!navigator.clipboard || !window.ClipboardItem) throw new Error('unsupported');
+        try {
+          // Safari向け：Blobの解決前にwriteを同期的に呼ぶ必要があるパターン
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': captureBlob() })]);
+        } catch {
+          // Chrome/Firefox向け：先にBlobを確定させてから渡すパターン
+          const blob = await captureBlob();
+          if (!blob) throw new Error('capture failed');
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        }
+        showStatus('画像をコピーしました。貼り付けて使えます。');
+      } catch {
+        try {
+          const blob = await captureBlob();
+          if (!blob) throw new Error('capture failed');
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `birthday-pokemon-${m}${d}.png`;
+          document.body.appendChild(a); a.click(); a.remove();
+          URL.revokeObjectURL(url);
+          showStatus('このブラウザは画像コピーに対応していないため、保存しました。');
+        } catch {
+          showStatus('画像を作成できませんでした。もう一度お試しください。');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    };
+
+    $('#imgSave').onclick = async e => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        const blob = await captureBlob();
+        if (!blob) throw new Error('capture failed');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `birthday-pokemon-${m}${d}.png`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      } catch {
+        showStatus('画像を作成できませんでした。もう一度お試しください。');
+      } finally {
+        btn.disabled = false;
+      }
     };
   }
 

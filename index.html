@@ -134,6 +134,30 @@
     font-feature-settings:"tnum";
     letter-spacing:.06em;
   }
+  .no-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .cry{
+    font:600 12px/1 "Zen Kaku Gothic New",system-ui,sans-serif;
+    background:color-mix(in srgb, var(--teal) 14%, transparent);
+    color:var(--teal);
+    border:1px solid color-mix(in srgb, var(--teal) 35%, transparent);
+    border-radius:999px;
+    padding:6px 12px;
+    margin:0;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .cry:hover{background:var(--teal);color:#fff}
+  .cry:disabled{opacity:.5;cursor:default}
+
+  .types{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0}
+  .type{
+    font:700 11px/1 "Zen Kaku Gothic New",system-ui,sans-serif;
+    color:#fff;
+    background:var(--tc);
+    padding:5px 10px;
+    border-radius:999px;
+    letter-spacing:.02em;
+  }
   .name{
     font-family:"Zen Maru Gothic",system-ui,sans-serif;
     font-weight:900;
@@ -155,6 +179,29 @@
   .share button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
   .share button:hover{background:var(--teal);color:#fff}
 
+  .volume{
+    margin-top:14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+  .volume label{flex-shrink:0}
+  .volume input[type="range"]{
+    flex:1;
+    max-width:220px;
+    accent-color:var(--teal);
+    cursor:pointer;
+  }
+  #volLabel{
+    min-width:3em;
+    text-align:right;
+    font-feature-settings:"tnum";
+    color:var(--ink);
+    font-weight:700;
+  }
+
   .note{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-soft)}
   .note h2{font-family:"Zen Maru Gothic",system-ui,sans-serif;font-size:16px;margin:0 0 8px;color:var(--ink)}
   .note a{color:var(--teal)}
@@ -172,12 +219,18 @@
     <button id="go">この日のポケモンを見る</button>
   </div>
 
+  <div class="volume">
+    <label for="vol">🔊 鳴き声の音量</label>
+    <input type="range" id="vol" min="0" max="100" step="5" value="40" aria-valuetext="40%">
+    <span id="volLabel">40%</span>
+  </div>
+
   <div id="out" aria-live="polite"></div>
 
   <div class="note">
     <h2>計算のしかた</h2>
     <p>うるう年込みの並び（2月29日を含む366日）で通算日を数え、<b>図鑑No. ÷ 366 の余り＝通算日 ÷ 366 の余り</b>になるポケモンを全部出しています。全国図鑑は現在No.1025まであるので、どの日にも2〜3匹が対応します。12月31日は余り0の組（No.366・732）です。</p>
-    <p>名前・分類・説明文は <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a>、画像は <a href="https://github.com/PokeAPI/sprites" target="_blank" rel="noopener">PokeAPI/sprites</a> から取得しています。ポケモンは株式会社ポケモン・任天堂・ゲームフリーク・クリーチャーズの登録商標です。このページは非公式のファン企画です。</p>
+    <p>名前・分類・説明文は <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a>、画像は <a href="https://github.com/PokeAPI/sprites" target="_blank" rel="noopener">PokeAPI/sprites</a>、鳴き声は <a href="https://github.com/PokeAPI/cries" target="_blank" rel="noopener">PokeAPI/cries</a> から取得しています。ポケモンは株式会社ポケモン・任天堂・ゲームフリーク・クリーチャーズの登録商標です。このページは非公式のファン企画です。</p>
   </div>
 </div>
 
@@ -189,7 +242,22 @@
   const DAYS = [31,29,31,30,31,30,31,31,30,31,30,31];
   const $ = s => document.querySelector(s);
   const mSel = $('#m'), dSel = $('#d'), out = $('#out');
+  const volSlider = $('#vol'), volLabel = $('#volLabel');
   const cache = new Map();
+
+  let volume = 0.4;
+  try {
+    const storedVol = localStorage.getItem('pokebirth:volume');
+    if (storedVol !== null) volume = Math.min(1, Math.max(0, +storedVol));
+  } catch { /* localStorageが使えない場合は初期値40%のまま */ }
+  volSlider.value = Math.round(volume * 100);
+  volLabel.textContent = `${volSlider.value}%`;
+  volSlider.oninput = () => {
+    volume = +volSlider.value / 100;
+    volLabel.textContent = `${volSlider.value}%`;
+    volSlider.setAttribute('aria-valuetext', `${volSlider.value}%`);
+    try { localStorage.setItem('pokebirth:volume', String(volume)); } catch { /* 保存できなくても再生には影響なし */ }
+  };
 
   for (let i = 1; i <= 12; i++) mSel.add(new Option(i, i));
 
@@ -209,7 +277,7 @@
   async function species(id) {
     if (cache.has(id)) return cache.get(id);
 
-    const lsKey = `pokebirth:v1:species:${id}`;
+    const lsKey = `pokebirth:v2:species:${id}`;
     try {
       const stored = localStorage.getItem(lsKey);
       if (stored) {
@@ -232,7 +300,17 @@
       j.flavor_text_entries.find(x => x.language.name === 'ja-Hrkt') ||
       j.flavor_text_entries.find(x => x.language.name === 'ja');
     const flavor = flavorEntry ? flavorEntry.flavor_text.replace(/[\n\f\r]/g, '') : '';
-    const data = { id, name, genus, flavor };
+    const data = { id, name, genus, flavor, cry: null, types: [] };
+    try {
+      const cryRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
+      if (cryRes.ok) {
+        const cj = await cryRes.json();
+        data.cry = cj.cries?.latest ?? cj.cries?.legacy ?? null;
+        data.types = (cj.types ?? [])
+          .sort((a, b) => a.slot - b.slot)
+          .map(t => t.type.name);
+      }
+    } catch { /* 鳴き声・タイプが取れなくても表示自体は続ける */ }
     cache.set(id, data);
     try { localStorage.setItem(lsKey, JSON.stringify(data)); }
     catch { /* 容量超過などは無視して動作は継続 */ }
@@ -241,6 +319,23 @@
 
   const art = id => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
   const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  const TYPE_META = {
+    normal:  ['ノーマル', '#A8A77A'], fire:   ['ほのお', '#EE8130'],
+    water:   ['みず',     '#6390F0'], electric:['でんき', '#F7D02C'],
+    grass:   ['くさ',     '#7AC74C'], ice:    ['こおり', '#96D9D6'],
+    fighting:['かくとう', '#C22E28'], poison: ['どく',   '#A33EA1'],
+    ground:  ['じめん',   '#E2BF65'], flying: ['ひこう', '#A98FF3'],
+    psychic: ['エスパー', '#F95587'], bug:    ['むし',   '#A6B91A'],
+    rock:    ['いわ',     '#B6A136'], ghost:  ['ゴースト','#735797'],
+    dragon:  ['ドラゴン', '#6F35FC'], dark:   ['あく',   '#705746'],
+    steel:   ['はがね',   '#B7B7CE'], fairy:  ['フェアリー','#D685AD'],
+    stellar: ['ステラ',   '#40B5A5'], unknown:['？',     '#68A090'],
+  };
+  const typeBadge = t => {
+    const [label, color] = TYPE_META[t] ?? [t, '#68A090'];
+    return `<span class="type" style="--tc:${color}">${esc(label)}</span>`;
+  };
 
   async function run(push) {
     const m = +mSel.value, d = +dSel.value;
@@ -267,9 +362,13 @@
             <img src="${art(p.id)}" alt="${esc(p.name)}" loading="lazy"
                  onerror="this.style.visibility='hidden'">
             <div>
-              <div class="no">No.${String(p.id).padStart(4,'0')}</div>
+              <div class="no-row">
+                <span class="no">No.${String(p.id).padStart(4,'0')}</span>
+                ${p.cry ? `<button class="cry" data-src="${esc(p.cry)}" aria-label="${esc(p.name)}の鳴き声を再生">🔊 鳴き声</button>` : ''}
+              </div>
               <p class="name">${esc(p.name)}</p>
               <p class="genus">${esc(p.genus)}</p>
+              ${p.types.length ? `<div class="types">${p.types.map(typeBadge).join('')}</div>` : ''}
               ${p.flavor ? `<p class="flavor">${esc(p.flavor)}</p>` : ''}
             </div>
           </div>`).join('')}
@@ -280,6 +379,17 @@
       </div>`;
 
     const text = `${m}月${d}日生まれ（${doy}日目）のポケモンは ${names}`;
+    document.querySelectorAll('.cry').forEach(btn => {
+      btn.onclick = () => {
+        const audio = new Audio(btn.dataset.src);
+        audio.volume = volume;
+        btn.disabled = true;
+        const reset = () => { btn.disabled = false; };
+        audio.addEventListener('ended', reset);
+        audio.addEventListener('error', reset);
+        audio.play().catch(reset);
+      };
+    });
     $('#tw').onclick = () => {
       const u = new URL('https://twitter.com/intent/tweet');
       u.searchParams.set('text', text);

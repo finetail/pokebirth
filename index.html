@@ -23,7 +23,6 @@
 <meta name="twitter:image" content="https://finetail.github.io/pokebirth/og-image.png">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
 <style>
@@ -391,7 +390,7 @@
         <div class="cards">
           ${list.map(p => `
             <div class="card reveal">
-              <img src="${art(p.id)}" alt="${esc(p.name)}" loading="lazy" crossorigin="anonymous"
+              <img src="${art(p.id)}" alt="${esc(p.name)}" loading="lazy"
                    onerror="this.style.visibility='hidden'">
               <div>
                 <div class="no-row">
@@ -444,13 +443,170 @@
       clearTimeout(showStatus._t);
       showStatus._t = setTimeout(() => { statusEl.textContent = ''; }, 2600);
     };
-    const captureCanvas = () => html2canvas(document.getElementById('capture'), {
-      useCORS: true,
-      backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#ffffff',
-      scale: Math.min(2, window.devicePixelRatio || 1.5),
+
+    const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const loadImg = src => new Promise(resolve => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
     });
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+    function wrapLines(ctx, text, maxWidth, maxLines) {
+      if (!text) return [];
+      const chars = [...text];
+      const lines = [];
+      let line = '';
+      for (const ch of chars) {
+        const test = line + ch;
+        if (ctx.measureText(test).width > maxWidth && line) {
+          lines.push(line);
+          line = ch;
+          if (lines.length === maxLines) { line = ''; break; }
+        } else {
+          line = test;
+        }
+      }
+      if (line && lines.length < maxLines) lines.push(line);
+      if (lines.length === maxLines) {
+        const last = lines[maxLines - 1];
+        lines[maxLines - 1] = last.length > 1 ? last.slice(0, -1) + '…' : last;
+      }
+      return lines;
+    }
+
+    async function buildResultCanvas(m, d, doy, list) {
+      await document.fonts.ready;
+      const W = 1080, PAD = 48, GAP = 18;
+      const ink = cssVar('--ink') || '#1A1B3D';
+      const inkSoft = cssVar('--ink-soft') || '#5A5C86';
+      const bg = cssVar('--bg') || '#EDEFFA';
+      const surface = cssVar('--surface') || '#FFFFFF';
+      const line = cssVar('--line') || '#D4D8EE';
+      const amber = cssVar('--amber') || '#FFB020';
+      const teal = cssVar('--teal') || '#128C87';
+
+      const images = await Promise.all(list.map(p => loadImg(art(p.id))));
+
+      // 事前計測：各カードの高さ（説明文の行数で可変）
+      const measure = document.createElement('canvas').getContext('2d');
+      const cardImgSize = 132, cardPad = 20, cardTextX = cardImgSize + cardPad * 2;
+      const cardWidth = W - PAD * 2;
+      const flavorMaxW = cardWidth - cardTextX - cardPad;
+      measure.font = '400 15px "Zen Kaku Gothic New", sans-serif';
+      const cardHeights = list.map(p => {
+        const flavorLines = wrapLines(measure, p.flavor, flavorMaxW, 2);
+        const base = cardPad * 2 + 26 /*name*/ + 20 /*genus*/ + (p.types.length ? 30 : 0);
+        return Math.max(cardImgSize + cardPad * 2, base + flavorLines.length * 21 + 6);
+      });
+
+      const headerH = 78;
+      const footerH = 46;
+      const totalH = PAD + headerH + GAP + cardHeights.reduce((a, b) => a + b + GAP, 0) + footerH + PAD;
+
+      const scale = Math.min(2, window.devicePixelRatio || 1.5);
+      const canvas = document.createElement('canvas');
+      canvas.width = W * scale;
+      canvas.height = totalH * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+
+      // 背景
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, totalH);
+
+      // ヘッダー
+      let y = PAD;
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = inkSoft;
+      ctx.font = '700 22px "Zen Kaku Gothic New", sans-serif';
+      ctx.fillText(`${m}月${d}日は 1年の ${doy}日目 ／ 366で割った余りは ${doy % CYCLE}`, PAD, y + 30);
+      ctx.font = '900 30px "Zen Maru Gothic", sans-serif';
+      ctx.fillStyle = ink;
+      ctx.fillText('誕生日ポケモン', PAD, y + 66);
+      y += headerH + GAP;
+
+      // カード
+      list.forEach((p, i) => {
+        const h = cardHeights[i];
+        roundRect(ctx, PAD, y, cardWidth, h, 20);
+        ctx.fillStyle = surface;
+        ctx.fill();
+        ctx.strokeStyle = line;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        const img = images[i];
+        const iy = y + (h - cardImgSize) / 2;
+        if (img) {
+          roundRect(ctx, PAD + cardPad, iy, cardImgSize, cardImgSize, 12);
+          ctx.save(); ctx.clip();
+          ctx.drawImage(img, PAD + cardPad, iy, cardImgSize, cardImgSize);
+          ctx.restore();
+        }
+
+        let tx = PAD + cardTextX, ty = y + cardPad;
+        ctx.font = '700 14px "Zen Maru Gothic", sans-serif';
+        ctx.fillStyle = teal;
+        ctx.fillText(`No.${String(p.id).padStart(4, '0')}`, tx, ty + 14);
+        ty += 30;
+        ctx.font = '900 24px "Zen Maru Gothic", sans-serif';
+        ctx.fillStyle = ink;
+        ctx.fillText(p.name, tx, ty);
+        ty += 22;
+        ctx.font = '400 14px "Zen Kaku Gothic New", sans-serif';
+        ctx.fillStyle = inkSoft;
+        ctx.fillText(p.genus, tx, ty);
+        ty += 8;
+
+        if (p.types.length) {
+          let bx = tx;
+          const by = ty + 12;
+          ctx.font = '700 12px "Zen Kaku Gothic New", sans-serif';
+          p.types.forEach(t => {
+            const [label, color] = TYPE_META[t] ?? [t, '#68A090'];
+            const w = ctx.measureText(label).width + 20;
+            roundRect(ctx, bx, by, w, 24, 12);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.fillText(label, bx + 10, by + 17);
+            bx += w + 6;
+          });
+          ty += 32;
+        } else {
+          ty += 4;
+        }
+
+        ctx.font = '400 15px "Zen Kaku Gothic New", sans-serif';
+        ctx.fillStyle = inkSoft;
+        wrapLines(measure, p.flavor, flavorMaxW, 2).forEach(l => {
+          ty += 21;
+          ctx.fillText(l, tx, ty);
+        });
+
+        y += h + GAP;
+      });
+
+      // フッター（クレジット）
+      ctx.font = '700 13px "Zen Kaku Gothic New", sans-serif';
+      ctx.fillStyle = inkSoft;
+      ctx.fillText('誕生日ポケモン｜finetail.github.io/pokebirth', PAD, y + 20);
+
+      return canvas;
+    }
+
     const captureBlob = async () => {
-      const canvas = await captureCanvas();
+      const canvas = await buildResultCanvas(m, d, doy, list);
       return await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     };
 

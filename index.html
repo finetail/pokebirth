@@ -99,6 +99,14 @@
   select option{color:#1A1B3D;background:#fff}
   select:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
   select:hover{border-color:var(--teal)}
+
+  .anniv{gap:8px;cursor:pointer;user-select:none}
+  .anniv input[type="checkbox"]{
+    width:18px;height:18px;
+    accent-color:var(--teal);
+    cursor:pointer;
+    margin:0;
+  }
   button{
     font:700 16px/1 "Zen Kaku Gothic New",system-ui,sans-serif;
     margin-left:auto;
@@ -246,6 +254,7 @@
   <div class="picker">
     <label class="f"><select id="m" aria-label="誕生月"></select>月</label>
     <label class="f"><select id="d" aria-label="誕生日"></select>日</label>
+    <label class="f anniv"><input type="checkbox" id="anniv"> 初代発売日の2/27を初日とする</label>
     <button id="go">この日のポケモンを見る</button>
   </div>
 
@@ -298,6 +307,8 @@
     dSel.value = Math.min(cur, max);
   }
   const dayOfYear = (m, d) => CUM[m-1] + d;
+  const ANNIV_DOY = dayOfYear(2, 27); // 初代『ポケットモンスター 赤・緑』発売日(1996/2/27)
+  const shiftToAnniv = doy => ((doy - ANNIV_DOY + CYCLE) % CYCLE) + 1;
   const matches = doy => {
     const r = doy % CYCLE, list = [];
     for (let n = 1; n <= MAX_DEX; n++) if (n % CYCLE === r) list.push(n);
@@ -369,9 +380,12 @@
 
   async function run(push) {
     const m = +mSel.value, d = +dSel.value;
-    const doy = dayOfYear(m, d), ids = matches(doy);
+    const useAnniv = $('#anniv').checked;
+    const rawDoy = dayOfYear(m, d);
+    const doy = useAnniv ? shiftToAnniv(rawDoy) : rawDoy;
+    const ids = matches(doy);
     out.innerHTML = `<p class="status">よみこみ中…</p>`;
-    if (push) history.replaceState(null, '', `?d=${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}`);
+    if (push) history.replaceState(null, '', `?d=${String(m).padStart(2,'0')}${String(d).padStart(2,'0')}${useAnniv ? '&a=1' : ''}`);
 
     let list;
     try {
@@ -382,10 +396,13 @@
     }
 
     const names = list.map(p => p.name).join('・');
+    const calcLabel = useAnniv
+      ? `${m}月${d}日は 初代発売日(2/27)を1日目とした <b>${doy}日目</b> ／ 366で割った余りは <b>${doy % CYCLE}</b>`
+      : `${m}月${d}日は 1年の <b>${doy}日目</b> ／ 366で割った余りは <b>${doy % CYCLE}</b>`;
     out.innerHTML = `
       <div id="capture">
         <div class="calc reveal">
-          ${m}月${d}日は 1年の <b>${doy}日目</b> ／ 366で割った余りは <b>${doy % CYCLE}</b>
+          ${calcLabel}
         </div>
         <div class="cards">
           ${list.map(p => `
@@ -413,7 +430,9 @@
       </div>
       <p class="status" id="imgStatus" aria-live="polite"></p>`;
 
-    const text = `${m}月${d}日生まれ（${doy}日目）のポケモンは ${names}`;
+    const text = useAnniv
+      ? `${m}月${d}日生まれ（初代発売日2/27起点で${doy}日目）のポケモンは ${names}`
+      : `${m}月${d}日生まれ（${doy}日目）のポケモンは ${names}`;
     document.querySelectorAll('.cry').forEach(btn => {
       btn.onclick = () => {
         const audio = new Audio(btn.dataset.src);
@@ -484,7 +503,7 @@
       return lines;
     }
 
-    async function buildResultCanvas(m, d, doy, list) {
+    async function buildResultCanvas(m, d, doy, list, useAnniv) {
       await document.fonts.ready;
       const W = 1080, PAD = 48, GAP = 18;
       const ink = cssVar('--ink') || '#1A1B3D';
@@ -548,7 +567,12 @@
       ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = inkSoft;
       ctx.font = '700 22px "Zen Kaku Gothic New", sans-serif';
-      ctx.fillText(`${m}月${d}日は 1年の ${doy}日目 ／ 366で割った余りは ${doy % CYCLE}`, PAD, y + 30);
+      ctx.fillText(
+        useAnniv
+          ? `${m}月${d}日は 初代発売日(2/27)を1日目とした ${doy}日目 ／ 366で割った余りは ${doy % CYCLE}`
+          : `${m}月${d}日は 1年の ${doy}日目 ／ 366で割った余りは ${doy % CYCLE}`,
+        PAD, y + 30
+      );
       ctx.font = '900 30px "Zen Maru Gothic", sans-serif';
       ctx.fillStyle = ink;
       ctx.fillText('誕生日ポケモン', PAD, y + 66);
@@ -621,7 +645,7 @@
     }
 
     const captureBlob = async () => {
-      const canvas = await buildResultCanvas(m, d, doy, list);
+      const canvas = await buildResultCanvas(m, d, doy, list, useAnniv);
       return await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     };
 
@@ -683,14 +707,16 @@
   mSel.onchange = () => fillDays();
   $('#go').onclick = () => run(true);
 
-  // 初期値：?d=MMDD があればそれ、なければ今日
-  const q = new URLSearchParams(location.search).get('d');
+  // 初期値：?d=MMDD があればそれ、なければ今日／&a=1 でアニバーサリーモード
+  const params = new URLSearchParams(location.search);
+  const q = params.get('d');
   const today = new Date();
   let m0 = today.getMonth() + 1, d0 = today.getDate();
   if (q && /^\d{4}$/.test(q)) {
     const mm = +q.slice(0,2), dd = +q.slice(2);
     if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= DAYS[mm-1]) { m0 = mm; d0 = dd; }
   }
+  if (params.get('a') === '1') $('#anniv').checked = true;
   mSel.value = m0; fillDays(d0);
   if (q) run(false);
 })();
